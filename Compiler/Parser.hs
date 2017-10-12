@@ -1,3 +1,4 @@
+{-| Simple recursive descent parser -}
 module Compiler.Parser where
 
 import Prelude hiding (lex)
@@ -5,25 +6,40 @@ import Compiler.Lexer hiding (makeTestCase)
 import Test.HUnit
 
 {- program : statement
- - statement : block | expression
+ - statement : block | decllist ';' | expression ';'
  - block : '{' statements '}'
- - statements : statement ';' statements | empty
+ - statements : statement statements | empty
  - expression : primary binoprhs
  - primary : identifierexpr | numberexpr | '(' expression ')'
  - binoprhs : binop primary | empty
- - numberexpr : num
+ - numberexpr : NUM
  - binop : '+'
+ - decllist : declident declaration declarations
+ - declident : 'val'
+ - declarations : ',' declaration
+ - declaration : id '=' expression
  -}
 data Program = Program Statement deriving (Eq, Show)
 
 data Statement = BlockStmt [Statement]
                | ExprStmt Expression
+               | DeclStmt DeclList
                deriving (Eq, Show)
 
 data Expression = Expression PrimaryExpr [BinOpRHS]
                 deriving (Eq, Show)
 
-data PrimaryExpr = IdentExpr
+data DeclList = DeclList DeclType [Declaration]
+              deriving (Eq, Show)
+
+data DeclType = DeclVal deriving Eq
+instance Show DeclType where
+    show DeclVal = "DeclVal"
+
+data Declaration = Declaration String Expression
+                 deriving (Eq, Show)
+
+data PrimaryExpr = IdentExpr String
                  | NumberExpr NumberType
                  | ParenExpr Expression
                  deriving (Eq, Show)
@@ -50,10 +66,14 @@ parseProgram tokens = let (stmt, rest) = parseStatement tokens in
 parseStatement :: [Token] -> (Statement, [Token])
 parseStatement tokens@(t:toks)
     | t == T_CURLY_L = parseBlock toks
-    | otherwise      = let (expr, r:rest) = parseExpression tokens in
-                           case r of
-                               T_SEMICOLON -> (ExprStmt expr, rest)
-                               _ -> error $ "Missing ';' at the end of statement! (have " ++ (show r) ++ ")"
+    | t == T_VAL     = let (decl, rest) = parseDecllist tokens in
+                           case length rest > 0 && head rest == T_SEMICOLON of
+                               True  -> (DeclStmt decl, tail rest)
+                               False -> error $ "Missing ';' at the end of statement! (have " ++ (show rest) ++ ")"
+    | otherwise      = let (expr, rest) = parseExpression tokens in
+                           case length rest > 0 && head rest == T_SEMICOLON of
+                               True  -> (ExprStmt expr, tail rest)
+                               False -> error $ "Missing ';' at the end of statement! (have " ++ (show rest) ++ ")"
 
 -- parses a block starting from the token after the beginning '{'
 parseBlock :: [Token] -> (Statement, [Token])
@@ -68,6 +88,25 @@ parseStatements tokens@(t:toks) | t == T_CURLY_R = ([], tokens)
                                                    where
                                                    (stmt, rest) = parseStatement tokens
                                                    (stmts, rests) = parseStatements rest
+
+parseDecllist :: [Token] -> (DeclList, [Token])
+parseDecllist (t:toks) | t == T_VAL = (DeclList DeclVal $ decl:decls, rest2)
+                       | otherwise  = error $ "Unknown declident " ++ (show t)
+                       where
+                       (decl, rest) = parseDeclaration toks
+                       (decls, rest2) = parseDeclarations rest
+
+parseDeclaration :: [Token] -> (Declaration, [Token])
+parseDeclaration ((T_IDENT id):T_ASSIGN:toks) = let (expr, rest) = parseExpression toks in
+                                                    (Declaration id expr, rest)
+parseDeclaration (t:_) = error $ "Error in declaration: " ++ (show t) ++ " is not a valid identifier."
+
+parseDeclarations :: [Token] -> ([Declaration], [Token])
+parseDeclarations (T_COMMA:toks) = (decl : decls, rest2)
+                                   where
+                                   (decl, rest)   = parseDeclaration toks
+                                   (decls, rest2) = parseDeclarations rest
+parseDeclarations toks = ([], toks)
 
 parseExpression :: [Token] -> (Expression, [Token])
 parseExpression tokens = let (lhs, rest) = parseUnary tokens in
@@ -210,6 +249,33 @@ testParseStatement = TestList
                    ],
         [])
         parseStatement [T_CURLY_L, T_CURLY_L, T_NUM 1.0, T_SEMICOLON, T_CURLY_R, T_NUM 2.0, T_SEMICOLON, T_CURLY_R]
+    , makeTestCase "stmt" -- val a = 1, b = 2;
+        (DeclStmt (DeclList DeclVal
+            [ Declaration "a" (Expression (NumberExpr 1.0) [])
+            , Declaration "b" (Expression (NumberExpr 2.0) [])
+            ]),
+        [])
+        parseStatement [T_VAL, T_IDENT "a", T_ASSIGN, T_NUM 1.0, T_COMMA, T_IDENT "b", T_ASSIGN, T_NUM 2.0, T_SEMICOLON]
+    ]
+
+testParseDecls = TestList
+    [ makeTestCase "decl" -- val a = 1
+        (DeclList DeclVal [Declaration "a" (Expression (NumberExpr 1.0) [])], [])
+        parseDecllist [T_VAL, T_IDENT "a", T_ASSIGN, T_NUM 1.0]
+    , makeTestCase "decl" -- val a = 1, b = 2
+        (DeclList DeclVal
+            [ Declaration "a" (Expression (NumberExpr 1.0) [])
+            , Declaration "b" (Expression (NumberExpr 2.0) [])
+            ],
+        [])
+        parseDecllist [T_VAL, T_IDENT "a", T_ASSIGN, T_NUM 1.0, T_COMMA, T_IDENT "b", T_ASSIGN, T_NUM 2.0]
+    , makeTestCase "decl" -- val a = (1 + 2)
+        (DeclList DeclVal
+            [ Declaration "a" (Expression (ParenExpr
+                (Expression (NumberExpr 1.0) [BinOpRHS OpPlus (NumberExpr 2.0)])) [])
+            ],
+        [])
+        parseDecllist [T_VAL, T_IDENT "a", T_ASSIGN, T_PAREN_L, T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PAREN_R]
     ]
 
 

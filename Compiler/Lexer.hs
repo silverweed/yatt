@@ -16,6 +16,11 @@ data Token = T_PLUS
            | T_PAREN_L
            | T_PAREN_R
            | T_INVALID String
+           | T_VAL
+           | T_ASSIGN
+           | T_COMMA
+           | T_EQUALS
+           | T_IDENT String
            deriving (Eq)
 
 instance Show Token where
@@ -29,10 +34,18 @@ instance Show Token where
     show T_SEMICOLON     = ";"
     show T_PAREN_L       = "("
     show T_PAREN_R       = ")"
+    show T_VAL           = "val" -- declare a read-only variable
+    show T_ASSIGN        = "="
+    show T_COMMA         = ","
+    show T_EQUALS        = "=="
+    show (T_IDENT name)  = name
 
 lex :: String -> [Token]
 lex "" = []
 lex input = let (tok, rest) = getToken input in tok : lex rest
+                {-case tok of-}
+                {-T_INVALID _ -> error $ show tok-}
+                {-_           -> tok : lex rest-}
 
 getToken :: String -> (Token, String)
 getToken s@(ch:chs) | isSpace ch = getToken chs
@@ -48,6 +61,12 @@ getToken s@(ch:chs) | isSpace ch = getToken chs
                     | ch == ';'  = (T_SEMICOLON, chs)
                     | ch == '('  = (T_PAREN_L, chs)
                     | ch == ')'  = (T_PAREN_R, chs)
+                    | ch == '='  = case compare (length chs) 0 of
+                                       GT -> case head (chs) of
+                                                 '=' -> (T_EQUALS, tail chs)
+                                                 _   -> (T_ASSIGN, chs)
+                                       EQ -> (T_ASSIGN, chs)
+                    | ch == ',' = (T_COMMA, chs)
                     | isAlpha ch = matchIdent s
                     | otherwise  = (T_INVALID s, "")
 
@@ -60,7 +79,11 @@ matchNum s = let (lexeme, rest) = span isNumComponent s in
              isNumComponent x = isDigit x || x `elem` ".eE"
 
 matchIdent :: String -> (Token, String)
-matchIdent s = (T_INVALID s, "") -- TODO
+matchIdent s | lexeme == show T_VAL = (T_VAL, rest)
+             | otherwise            = (T_IDENT lexeme, rest)
+             where
+             (lexeme, rest) = span isIdentComponent s
+             isIdentComponent s = isAlphaNum s || s `elem` "_$"
 
 matchToken :: String -> Token
 matchToken n   = case readMaybe n :: Maybe Double of
@@ -74,37 +97,57 @@ invalidToken tok = error $ "Invalid token: " ++ tok
 --------------------------------------- TESTS
 
 testLexPlus = TestList
-              [ makeTestCase "+"   [T_PLUS]
-              , makeTestCase "++"  [T_PLUSPLUS]
-              , makeTestCase "+ +" [T_PLUS, T_PLUS]
-              , makeTestCase "+="  [T_PLUSEQUAL]
-              , makeTestCase "+++" [T_PLUSPLUS, T_PLUS]
+              [ makeTestCase lex "+"   [T_PLUS]
+              , makeTestCase lex "++"  [T_PLUSPLUS]
+              , makeTestCase lex "+ +" [T_PLUS, T_PLUS]
+              , makeTestCase lex "+="  [T_PLUSEQUAL]
+              , makeTestCase lex "+++" [T_PLUSPLUS, T_PLUS]
               ]
+testLexEqual = TestList
+               [ makeTestCase lex "="   [T_ASSIGN]
+               , makeTestCase lex "=="  [T_EQUALS]
+               , makeTestCase lex "= =" [T_ASSIGN, T_ASSIGN]
+               , makeTestCase lex "===" [T_EQUALS, T_ASSIGN]
+               ]
+testLexComma = makeTestCase lex "," [T_COMMA]
 testLexNum = TestList
-             [  makeTestCase "1"      [T_NUM 1.0]
-             ,  makeTestCase "10"     [T_NUM 10.0]
-             ,  makeTestCase "1.0"    [T_NUM 1.0]
-             ,  makeTestCase "1e2"    [T_NUM 1e2]
-             ,  makeTestCase "1."     [T_INVALID "1."]
-             ,  makeTestCase "1.0.1"  [T_INVALID "1.0.1"]
-             ,  makeTestCase "1e10e2" [T_INVALID "1e10e2"]
+             [  makeTestCase lex "1"      [T_NUM 1.0]
+             ,  makeTestCase lex "10"     [T_NUM 10.0]
+             ,  makeTestCase lex "1.0"    [T_NUM 1.0]
+             ,  makeTestCase lex "1e2"    [T_NUM 1e2]
+             ,  makeTestCase lex "1."     [T_INVALID "1."]
+             ,  makeTestCase lex "1.0.1"  [T_INVALID "1.0.1"]
+             ,  makeTestCase lex "1e10e2" [T_INVALID "1e10e2"]
              ]
 testLexCurly = TestList
-               [ makeTestCase "{"         [T_CURLY_L]
-               , makeTestCase "}"         [T_CURLY_R]
-               , makeTestCase "{ 1 + 2 }" [T_CURLY_L, T_NUM 1.0, T_PLUS, T_NUM 2.0, T_CURLY_R]
+               [ makeTestCase lex  "{"         [T_CURLY_L]
+               , makeTestCase lex  "}"         [T_CURLY_R]
+               , makeTestCase lex  "{ 1 + 2 }" [T_CURLY_L, T_NUM 1.0, T_PLUS, T_NUM 2.0, T_CURLY_R]
                ]
-testLexSemicolon = makeTestCase ";" [T_SEMICOLON]
+testLexSemicolon = makeTestCase lex ";" [T_SEMICOLON]
 testLexParen = TestList
-               [ makeTestCase "("         [T_PAREN_L]
-               , makeTestCase ")"         [T_PAREN_R]
-               , makeTestCase "( 1 + 2 )" [T_PAREN_L, T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PAREN_R]
+               [ makeTestCase lex  "("         [T_PAREN_L]
+               , makeTestCase lex  ")"         [T_PAREN_R]
+               , makeTestCase lex  "( 1 + 2 )" [T_PAREN_L, T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PAREN_R]
                ]
+testLexGetToken = TestList
+                  [ makeTestCase getToken "{"    (T_CURLY_L, "")
+                  , makeTestCase getToken "{}"   (T_CURLY_L, "}")
+                  , makeTestCase getToken "++"   (T_PLUSPLUS, "")
+                  , makeTestCase getToken "+++"  (T_PLUSPLUS, "+")
+                  , makeTestCase getToken "123+" (T_NUM 123.0, "+")
+                  , makeTestCase getToken "0.2"  (T_NUM 0.2, "")
+                  ]
+testLexIdent = TestList
+          [ makeTestCase lex "val"  [T_VAL]
+          , makeTestCase lex "vals" [T_IDENT "vals"]
+          ]
 testLex = TestList
-          [ makeTestCase "1 + 2.4"   [T_NUM 1.0, T_PLUS, T_NUM 2.4]
-          -- FIXME
-          , makeTestCase "2+3+4"     [T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PLUS, T_NUM 4.0]
-          , makeTestCase "2 + 3 + 4" [T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PLUS, T_NUM 4.0]
+          [ makeTestCase lex "1 + 2.4"     [T_NUM 1.0, T_PLUS, T_NUM 2.4]
+          , makeTestCase lex "2+3+4"       [T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PLUS, T_NUM 4.0]
+          , makeTestCase lex "2 + 3 + 4"   [T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PLUS, T_NUM 4.0]
+          , makeTestCase lex "val a=1;"    [T_VAL, T_IDENT "a", T_ASSIGN, T_NUM 1.0, T_SEMICOLON]
+          , makeTestCase lex "val a=1,b=2;" [T_VAL, T_IDENT "a", T_ASSIGN, T_NUM 1.0, T_COMMA, T_IDENT "b", T_ASSIGN, T_NUM 2.0, T_SEMICOLON]
           ]
 
-makeTestCase arg expected = TestCase (assertEqual ("lex: " ++ arg) expected (lex arg))
+makeTestCase f arg expected = TestCase (assertEqual ("lex: " ++ arg) expected (f arg))
