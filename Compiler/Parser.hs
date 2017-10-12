@@ -5,9 +5,9 @@ import Compiler.Lexer hiding (makeTestCase)
 import Test.HUnit
 
 {- program : statement
- - statement : block | expression ';'
+ - statement : block | expression
  - block : '{' statements '}'
- - statements : statement statements | empty
+ - statements : statement ';' statements | empty
  - expression : primary binoprhs
  - primary : identifierexpr | numberexpr | '(' expression ')'
  - binoprhs : binop primary | empty

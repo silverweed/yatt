@@ -1,5 +1,6 @@
 module Main where
 
+import Prelude hiding (lex)
 import Test.HUnit
 import Compiler.Lexer
 import Compiler.Parser
@@ -7,6 +8,8 @@ import Compiler.Parser
 main :: IO ()
 main = do runTestTT tests
           return ()
+
+compile = show . parse . lex
 
 tests = TestList [ TestList testsLexer, TestList testsParser ]
 
