@@ -22,8 +22,8 @@ import Test.HUnit
 data Program = Program Statement deriving (Eq, Show)
 
 data Statement = BlockStmt [Statement]
-               | ExprStmt Expression
-               | DeclStmt DeclList
+               | ExprStmt  Expression
+               | DeclStmt  DeclList
                deriving (Eq, Show)
 
 data Expression = Expression PrimaryExpr [BinOpRHS]
@@ -39,9 +39,9 @@ instance Show DeclType where
 data Declaration = Declaration String Expression
                  deriving (Eq, Show)
 
-data PrimaryExpr = IdentExpr String
+data PrimaryExpr = IdentExpr  String
                  | NumberExpr NumberType
-                 | ParenExpr Expression
+                 | ParenExpr  Expression
                  deriving (Eq, Show)
 
 data BinOpRHS = BinOpRHS BinOp PrimaryExpr deriving (Eq, Show)
@@ -93,7 +93,7 @@ parseDecllist :: [Token] -> (DeclList, [Token])
 parseDecllist (t:toks) | t == T_VAL = (DeclList DeclVal $ decl:decls, rest2)
                        | otherwise  = error $ "Unknown declident " ++ (show t)
                        where
-                       (decl, rest) = parseDeclaration toks
+                       (decl, rest)   = parseDeclaration toks
                        (decls, rest2) = parseDeclarations rest
 
 parseDeclaration :: [Token] -> (Declaration, [Token])
@@ -109,17 +109,19 @@ parseDeclarations (T_COMMA:toks) = (decl : decls, rest2)
 parseDeclarations toks = ([], toks)
 
 parseExpression :: [Token] -> (Expression, [Token])
-parseExpression tokens = let (lhs, rest) = parseUnary tokens in
-                             let (rhs, rest2) = parseBinOpRHS rest in
-                                 (Expression lhs rhs, rest2)
+parseExpression tokens = (Expression lhs rhs, rest2)
+                         where
+                         (lhs, rest)  = parseUnary tokens
+                         (rhs, rest2) = parseBinOpRHS rest
 
 parseUnary :: [Token] -> (PrimaryExpr, [Token])
 parseUnary = parsePrimary -- TODO
 
 parsePrimary :: [Token] -> (PrimaryExpr, [Token])
-parsePrimary (t:toks) | t == T_PAREN_L = parseParenExpr toks
-                      | otherwise      = (parseNum t, toks)
-                      -- TODO identifierExpr
+parsePrimary (T_PAREN_L:toks)    = parseParenExpr toks
+parsePrimary ((T_NUM n):toks)    = (NumberExpr n, toks)
+parsePrimary ((T_IDENT id):toks) = (IdentExpr id, toks)
+parsePrimary (other:toks)        = error $ "Expected primary expression, not '" ++ (show other) ++ "'"
 
 parseParenExpr :: [Token] -> (PrimaryExpr, [Token])
 parseParenExpr tokens = let (expr, r:rest) = parseExpression tokens in
@@ -156,70 +158,86 @@ parseNum t = error $ "Not a number: " ++ (show t)
 testParseNum = TestCase (assertEqual "num 1" (NumberExpr 1.0) (parseNum (T_NUM 1.0)))
 testParseExpr = TestList
     [ makeTestCase "expr" -- 1
-            (Expression (NumberExpr 1.0) [], [])
-            parseExpression [T_NUM 1.0]
+          (Expression (NumberExpr 1.0) [], [])
+          parseExpression [T_NUM 1.0]
 
     , makeTestCase "expr" -- 1 + 2
-           (Expression (NumberExpr 1.0) [BinOpRHS OpPlus (NumberExpr 2.0)], [])
-           parseExpression [T_NUM 1.0, T_PLUS, T_NUM 2.0]
+          (Expression (NumberExpr 1.0) [BinOpRHS OpPlus (NumberExpr 2.0)], [])
+          parseExpression [T_NUM 1.0, T_PLUS, T_NUM 2.0]
 
     , makeTestCase "expr" -- ( 3 )
-           (Expression (ParenExpr (Expression (NumberExpr 3.0) [])) [], [])
-           parseExpression [T_PAREN_L, T_NUM 3.0, T_PAREN_R]
+          (Expression (ParenExpr (Expression (NumberExpr 3.0) [])) [], [])
+          parseExpression [T_PAREN_L, T_NUM 3.0, T_PAREN_R]
 
     , makeTestCase "expr" -- ( ( ( ( 3 ) ) ) )
-           (Expression (ParenExpr (Expression (NumberExpr 3.0) [])) [], [])
-           parseExpression [T_PAREN_L, T_PAREN_L, T_PAREN_L, T_PAREN_L, T_NUM 3.0,
+          (Expression (ParenExpr (Expression (NumberExpr 3.0) [])) [], [])
+          parseExpression [T_PAREN_L, T_PAREN_L, T_PAREN_L, T_PAREN_L, T_NUM 3.0,
                             T_PAREN_R, T_PAREN_R, T_PAREN_R, T_PAREN_R]
 
     , makeTestCase "expr" -- 1 + 2 + 3
-           (Expression (NumberExpr 1.0) [BinOpRHS OpPlus (NumberExpr 2.0), BinOpRHS OpPlus (NumberExpr 3.0)], [])
-           parseExpression [T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PLUS, T_NUM 3.0]
+          (Expression (NumberExpr 1.0) [BinOpRHS OpPlus (NumberExpr 2.0), BinOpRHS OpPlus (NumberExpr 3.0)], [])
+          parseExpression [T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PLUS, T_NUM 3.0]
 
     , makeTestCase "expr" -- 1 + 2 + 3 + 4 + 5
-           (Expression (NumberExpr 1.0)
-                    [ BinOpRHS OpPlus (NumberExpr 2.0)
-                    , BinOpRHS OpPlus (NumberExpr 3.0)
-                    , BinOpRHS OpPlus (NumberExpr 4.0)
-                    , BinOpRHS OpPlus (NumberExpr 5.0)
-                    ], [])
-           parseExpression [T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PLUS, T_NUM 4.0, T_PLUS, T_NUM 5.0]
+          (Expression (NumberExpr 1.0)
+              [ BinOpRHS OpPlus (NumberExpr 2.0)
+              , BinOpRHS OpPlus (NumberExpr 3.0)
+              , BinOpRHS OpPlus (NumberExpr 4.0)
+              , BinOpRHS OpPlus (NumberExpr 5.0)
+              ], [])
+          parseExpression [T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PLUS, T_NUM 4.0, T_PLUS, T_NUM 5.0]
 
     , makeTestCase "expr" -- ( 1 + 2 ) + 3
-           (Expression
-                    (ParenExpr (Expression (NumberExpr 1.0) [BinOpRHS OpPlus (NumberExpr 2.0)]))
-                    [BinOpRHS OpPlus (NumberExpr 3.0)],
-           [])
-           parseExpression [T_PAREN_L, T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PAREN_R, T_PLUS, T_NUM 3.0]
+          (Expression
+              (ParenExpr (Expression (NumberExpr 1.0) [BinOpRHS OpPlus (NumberExpr 2.0)]))
+              [BinOpRHS OpPlus (NumberExpr 3.0)],
+          [])
+          parseExpression [T_PAREN_L, T_NUM 1.0, T_PLUS, T_NUM 2.0, T_PAREN_R, T_PLUS, T_NUM 3.0]
 
     , makeTestCase "expr" -- ( 1 + ( 2 + 3 ) )
-           (Expression
-                    (ParenExpr (Expression (NumberExpr 1.0)
-                        [ BinOpRHS OpPlus (ParenExpr (Expression (NumberExpr 2.0) [BinOpRHS OpPlus (NumberExpr 3.0)]))
-                        ]))
-                    [],
-           [])
-           parseExpression [T_PAREN_L, T_NUM 1.0, T_PLUS, T_PAREN_L, T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PAREN_R, T_PAREN_R]
+          (Expression
+              (ParenExpr (Expression (NumberExpr 1.0)
+                  [ BinOpRHS OpPlus (ParenExpr (Expression (NumberExpr 2.0) [BinOpRHS OpPlus (NumberExpr 3.0)]))
+                  ]))
+              [],
+          [])
+          parseExpression [T_PAREN_L, T_NUM 1.0, T_PLUS, T_PAREN_L, T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PAREN_R, T_PAREN_R]
 
     , makeTestCase "expr" -- 1 + ( 2 + 3 ) + 4
-           (Expression
-                    (NumberExpr 1.0)
-                    [ BinOpRHS OpPlus (ParenExpr (Expression (NumberExpr 2.0) [BinOpRHS OpPlus (NumberExpr 3.0)]))
-                    , BinOpRHS OpPlus (NumberExpr 4.0)
-                    ],
-           [])
-           parseExpression [T_NUM 1.0, T_PLUS, T_PAREN_L, T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PAREN_R, T_PLUS, T_NUM 4.0]
+          (Expression
+              (NumberExpr 1.0)
+              [ BinOpRHS OpPlus (ParenExpr (Expression (NumberExpr 2.0) [BinOpRHS OpPlus (NumberExpr 3.0)]))
+              , BinOpRHS OpPlus (NumberExpr 4.0)
+              ],
+          [])
+          parseExpression [T_NUM 1.0, T_PLUS, T_PAREN_L, T_NUM 2.0, T_PLUS, T_NUM 3.0, T_PAREN_R, T_PLUS, T_NUM 4.0]
 
     , makeTestCase "expr" -- ( 1 + ( 2 + 3 ) + 4 ) + 5
-           (Expression
-                    (ParenExpr (Expression (NumberExpr 1.0)
-                        [ BinOpRHS OpPlus (ParenExpr (Expression (NumberExpr 2.0) [BinOpRHS OpPlus (NumberExpr 3.0)]))
-                        , BinOpRHS OpPlus (NumberExpr 4.0)
-                        ]))
-                    [BinOpRHS OpPlus (NumberExpr 5.0)],
-           [])
-           parseExpression [T_PAREN_L, (T_NUM 1.0), T_PLUS, T_PAREN_L, (T_NUM 2.0),
-                           T_PLUS, (T_NUM 3.0), T_PAREN_R, T_PLUS, (T_NUM 4.0), T_PAREN_R, T_PLUS, (T_NUM 5.0)]
+          (Expression
+              (ParenExpr (Expression (NumberExpr 1.0)
+                  [ BinOpRHS OpPlus (ParenExpr (Expression (NumberExpr 2.0) [BinOpRHS OpPlus (NumberExpr 3.0)]))
+                  , BinOpRHS OpPlus (NumberExpr 4.0)
+                  ]))
+              [BinOpRHS OpPlus (NumberExpr 5.0)],
+          [])
+          parseExpression [T_PAREN_L, T_NUM 1.0, T_PLUS, T_PAREN_L, T_NUM 2.0,
+                           T_PLUS, T_NUM 3.0, T_PAREN_R, T_PLUS, T_NUM 4.0, T_PAREN_R, T_PLUS, T_NUM 5.0]
+
+    , makeTestCase "expr" -- 1 + a
+          (Expression (NumberExpr 1.0) [ BinOpRHS OpPlus (IdentExpr "a")], [])
+          parseExpression [T_NUM 1.0, T_PLUS, T_IDENT "a"]
+
+    , makeTestCase "expr" -- ( a + b + ( 2 + c ) + 4 ) + d
+          (Expression
+              (ParenExpr (Expression (IdentExpr "a")
+                  [ BinOpRHS OpPlus (IdentExpr "b")
+                  , BinOpRHS OpPlus (ParenExpr (Expression (NumberExpr 2.0) [BinOpRHS OpPlus (IdentExpr "c")]))
+                  , BinOpRHS OpPlus (NumberExpr 4.0)
+                  ]))
+              [BinOpRHS OpPlus (IdentExpr "d")],
+          [])
+          parseExpression [T_PAREN_L, T_IDENT "a", T_PLUS, T_IDENT "b", T_PLUS, T_PAREN_L, T_NUM 2.0,
+                           T_PLUS, T_IDENT "c", T_PAREN_R, T_PLUS, T_NUM 4.0, T_PAREN_R, T_PLUS, T_IDENT "d"]
     ]
 
 testParseStatement = TestList
