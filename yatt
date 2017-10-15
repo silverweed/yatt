@@ -29,6 +29,7 @@ done
 test $FORCEBUILD && cabal build
 COMPILER=./dist/build/compiler/compiler
 CC=g++
+DFLT_CLIBS="-lm"
 
 [[ $NOFORMAT == true ]] && [[ -z $(which clang-format) ]] && NOFORMAT=false
 
@@ -60,13 +61,13 @@ else
 	OUTFILE=${OUTFILE:-$INFILE.x}
 	echo Outfile: $OUTFILE
 	if test $DONTKEEP; then
-		$COMPILER <$INFILE | gcc -x c++ -o $OUTFILE -
+		$COMPILER <$INFILE | gcc -x c++ -o $OUTFILE - $DFLT_CLIBS
 		[[ $? == 0 ]] && ./$OUTFILE
 		rm -f $OUTFILE
 	else
 		$COMPILER <$INFILE >$OUTFILE.c
 		echo Translated $INFILE to $OUTFILE.c
-		$CC -o $OUTFILE $OUTFILE.c
+		$CC -o $OUTFILE $OUTFILE.c $DFLT_CLIBS
 		echo Compiled $OUTFILE.c to $OUTFILE
 		[[ $? == 0 ]] && ./$OUTFILE
 	fi

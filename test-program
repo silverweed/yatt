@@ -1,7 +1,6 @@
-inl "stdio.h"
+inl "stdio.h", "math.h"
 
 var a = 1
-
 a = a + a
 
-printf("%f\n", a)
+printf("%f\n", sin(a))
