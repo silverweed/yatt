@@ -1,0 +1,7 @@
+inl "stdio.h"
+
+var a = 1
+
+a = a + a
+
+printf("%f\n", a)

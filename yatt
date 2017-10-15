@@ -1,0 +1,73 @@
+#!/bin/bash
+
+usage() {
+	cat <<EOF
+Usage: yatt [options] <file>
+Options:
+	-E		translate to C only, don't compile output.
+	-c		translate and compile file, but don't execute
+	-o <file>	specify output file name
+	-f		don't format C outputted file
+	-k		don't keep intermediate files
+	-b		force a compiler rebuild
+EOF
+}
+
+while [[ $# > 0 ]]; do
+	case $1 in
+	-E) TRANSLATEONLY=true; shift ;;
+	-c) TRANSPILEONLY=true; shift ;;
+	-o) shift; OUTFILE=$1; shift ;;
+	-f) NOFORMAT=true; shift ;;
+	-k) DONTKEEP=true; shift ;;
+	-b) FORCEBUILE=true; shift ;;
+	-*) usage; exit 0 ;;
+	*) INFILE=$1; shift ;;
+	esac
+done
+
+test $FORCEBUILD && cabal build
+COMPILER=./dist/build/compiler/compiler
+CC=g++
+
+[[ $NOFORMAT == true ]] && [[ -z $(which clang-format) ]] && NOFORMAT=false
+
+[[ $OUTFILE == "-" ]] && OUTFILE=/dev/stdout
+
+if test $TRANSLATEONLY; then
+	if [[ $OUTFILE == '/dev/stdout' ]]; then
+		if test $NOFORMAT; then
+			$COMPILER <$INFILE
+		else
+			$COMPILER <$INFILE | clang-format
+		fi
+	else
+		OUTFILE=${OUTFILE:-$INFILE.c}
+		echo Outfile: $OUTFILE
+		$COMPILER <$INFILE >$OUTFILE
+		test $NOFORMAT || clang-format -i $OUTFILE
+	fi
+elif test $TRANSPILEONLY; then
+	OUTFILE=${OUTFILE:-$INFILE.o}
+	echo Outfile: $OUTFILE
+	if test $DONTKEEP; then
+		$COMPILER <$INFILE | gcc -x c++ -co $OUTFILE -
+	else
+		$COMPILER <$INFILE >$OUTFILE.c
+		$CC -o $OUTFILE $OUTFILE.c
+	fi
+else
+	OUTFILE=${OUTFILE:-$INFILE.x}
+	echo Outfile: $OUTFILE
+	if test $DONTKEEP; then
+		$COMPILER <$INFILE | gcc -x c++ -o $OUTFILE -
+		[[ $? == 0 ]] && ./$OUTFILE
+		rm -f $OUTFILE
+	else
+		$COMPILER <$INFILE >$OUTFILE.c
+		echo Translated $INFILE to $OUTFILE.c
+		$CC -o $OUTFILE $OUTFILE.c
+		echo Compiled $OUTFILE.c to $OUTFILE
+		[[ $? == 0 ]] && ./$OUTFILE
+	fi
+fi

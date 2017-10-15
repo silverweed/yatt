@@ -27,10 +27,14 @@ testsLexer = [ TestLabel "testLexPlus" testLexPlus
              , TestLabel "testLexEqual" testLexEqual
              , TestLabel "testLexComma" testLexComma
              , TestLabel "testLexIdent" testLexIdent
+             , TestLabel "testLexString" testLexString
+             , TestLabel "testLexFunc" testLexFunc
              , TestLabel "testLex" testLex
              ]
 testsParser = [ TestLabel "testParseNum" testParseNum
               , TestLabel "testParseExpr" testParseExpr
               , TestLabel "testParseStatement" testParseStatement
               , TestLabel "testParseDecls" testParseDecls
+              , TestLabel "testParseCallExpr" testParseCallExpr
+              , TestLabel "testParseProgram" testParseProgram
               ]
