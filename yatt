@@ -20,7 +20,7 @@ while [[ $# > 0 ]]; do
 	-o) shift; OUTFILE=$1; shift ;;
 	-f) NOFORMAT=true; shift ;;
 	-k) DONTKEEP=true; shift ;;
-	-b) FORCEBUILE=true; shift ;;
+	-b) FORCEBUILD=true; shift ;;
 	-*) usage; exit 0 ;;
 	*) INFILE=$1; shift ;;
 	esac
@@ -52,7 +52,7 @@ elif test $TRANSPILEONLY; then
 	OUTFILE=${OUTFILE:-$INFILE.o}
 	echo Outfile: $OUTFILE >&2
 	if test $DONTKEEP; then
-		$COMPILER <$INFILE | gcc -x c++ -co $OUTFILE -
+		$COMPILER <$INFILE | gcc -x c++ -c -o $OUTFILE -
 	else
 		$COMPILER <$INFILE >$OUTFILE.c
 		$CC -o $OUTFILE $OUTFILE.c
