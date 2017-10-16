@@ -44,13 +44,13 @@ if test $TRANSLATEONLY; then
 		fi
 	else
 		OUTFILE=${OUTFILE:-$INFILE.c}
-		echo Outfile: $OUTFILE
+		echo Outfile: $OUTFILE >&2
 		$COMPILER <$INFILE >$OUTFILE
 		test $NOFORMAT || clang-format -i $OUTFILE
 	fi
 elif test $TRANSPILEONLY; then
 	OUTFILE=${OUTFILE:-$INFILE.o}
-	echo Outfile: $OUTFILE
+	echo Outfile: $OUTFILE >&2
 	if test $DONTKEEP; then
 		$COMPILER <$INFILE | gcc -x c++ -co $OUTFILE -
 	else
@@ -59,16 +59,16 @@ elif test $TRANSPILEONLY; then
 	fi
 else
 	OUTFILE=${OUTFILE:-$INFILE.x}
-	echo Outfile: $OUTFILE
+	echo Outfile: $OUTFILE >&2
 	if test $DONTKEEP; then
 		$COMPILER <$INFILE | gcc -x c++ -o $OUTFILE - $DFLT_CLIBS
 		[[ $? == 0 ]] && ./$OUTFILE
 		rm -f $OUTFILE
 	else
 		$COMPILER <$INFILE >$OUTFILE.c
-		echo Translated $INFILE to $OUTFILE.c
+		echo Translated $INFILE to $OUTFILE.c >&2
 		$CC -o $OUTFILE $OUTFILE.c $DFLT_CLIBS
-		echo Compiled $OUTFILE.c to $OUTFILE
+		echo Compiled $OUTFILE.c to $OUTFILE >&2
 		[[ $? == 0 ]] && ./$OUTFILE
 	fi
 fi
