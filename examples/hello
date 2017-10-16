@@ -1,0 +1,5 @@
+inl "stdio.h"
+
+val a = "hello world\n"
+
+printf(a)
